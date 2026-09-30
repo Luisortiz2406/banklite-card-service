@@ -1,10 +1,22 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, createDecipheriv, randomBytes, randomInt } from 'crypto';
 
 @Injectable()
-export class CardCryptoService {
+export class CardCryptoService implements OnModuleInit {
+  private readonly logger = new Logger('CardCryptoService');
+
   constructor(private readonly config: ConfigService) {}
+
+  /** Avisa al arrancar (en vez de al primer uso) si la clave de cifrado no es válida. */
+  onModuleInit() {
+    const hex = this.config.get<string>('CARD_ENCRYPTION_KEY') || '';
+    if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+      this.logger.error(
+        'CARD_ENCRYPTION_KEY falta o no tiene 64 caracteres hexadecimales: emitir y mostrar tarjetas responderá 503.',
+      );
+    }
+  }
 
   createCredentials() {
     const firstFifteen = `4${Array.from({ length: 14 }, () => randomInt(0, 10)).join('')}`;
