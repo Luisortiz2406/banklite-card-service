@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { fetchWithRetry } from '../common/http/fetch-with-retry';
 
 export interface CardAccountInfo {
   id: string;
@@ -17,9 +18,8 @@ export class AccountsClientService {
     const baseUrl = this.config.get<string>('ACCOUNT_SERVICE_URL', 'http://localhost:3002');
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/accounts/${encodeURIComponent(accountId)}`, {
+      response = await fetchWithRetry(`${baseUrl}/accounts/${encodeURIComponent(accountId)}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(5000),
       });
     } catch {
       throw new ServiceUnavailableException('No se pudo contactar Account Service.');
