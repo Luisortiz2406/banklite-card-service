@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -12,10 +13,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { InternalKeyGuard } from '../common/guards/internal-key.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { isIsoDate } from './billing-dates';
+import { bogotaToday, isIsoDate } from './billing-dates';
 import { EnrollSubscriptionDto, RunBillingDto } from './dto/subscription.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -68,16 +70,29 @@ export class SubscriptionsController {
 /**
  * Ejecuta a demanda la misma tarea del cron (p. ej. para la presentación).
  * Solo red interna: INTERNAL_API_KEY y el gateway no publica /internal.
+ *
+ * Siempre procesa la fecha de hoy (Bogotá). Otra fecha solo se acepta si
+ * ALLOW_BILLING_DATE_OVERRIDE=true (pruebas locales); en producción no, así
+ * nadie puede cobrar por adelantado los meses futuros.
  */
 @Controller('internal/subscriptions')
 @UseGuards(InternalKeyGuard)
 export class InternalSubscriptionsController {
-  constructor(private readonly subscriptions: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptions: SubscriptionsService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Post('run-billing')
   @HttpCode(HttpStatus.OK)
   runBilling(@Body() dto: RunBillingDto) {
-    if (dto.date && !isIsoDate(dto.date)) throw new BadRequestException('date no es una fecha válida.');
-    return this.subscriptions.runBilling(dto.date);
+    const today = bogotaToday();
+    if (dto.date && dto.date !== today) {
+      if (this.config.get<string>('ALLOW_BILLING_DATE_OVERRIDE') !== 'true') {
+        throw new ForbiddenException(`Solo se puede ejecutar el cobro de hoy (${today}).`);
+      }
+      if (!isIsoDate(dto.date)) throw new BadRequestException('date no es una fecha válida.');
+    }
+    return this.subscriptions.runBilling(dto.date ?? today);
   }
 }
