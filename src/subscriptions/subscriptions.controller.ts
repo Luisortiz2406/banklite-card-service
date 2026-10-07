@@ -69,11 +69,11 @@ export class SubscriptionsController {
 
 /**
  * Ejecuta a demanda la misma tarea del cron (p. ej. para la presentación).
- * Solo red interna: INTERNAL_API_KEY y el gateway no publica /internal.
+ * Solo red interna: claves de INTERNAL_TRUSTED_KEYS y el gateway no publica /internal.
  *
  * Siempre procesa la fecha de hoy (Bogotá). Otra fecha solo se acepta si
- * ALLOW_BILLING_DATE_OVERRIDE=true (pruebas locales); en producción no, así
- * nadie puede cobrar por adelantado los meses futuros.
+ * ALLOW_BILLING_DATE_OVERRIDE=true y NODE_ENV no es production (pruebas
+ * locales), así nadie puede cobrar por adelantado los meses futuros.
  */
 @Controller('internal/subscriptions')
 @UseGuards(InternalKeyGuard)
@@ -88,7 +88,11 @@ export class InternalSubscriptionsController {
   runBilling(@Body() dto: RunBillingDto) {
     const today = bogotaToday();
     if (dto.date && dto.date !== today) {
-      if (this.config.get<string>('ALLOW_BILLING_DATE_OVERRIDE') !== 'true') {
+      // Doble control: con NODE_ENV=production (fijado en el Dockerfile) se
+      // rechaza aunque el flag quede activado por error en el entorno.
+      const overrideAllowed = this.config.get<string>('NODE_ENV') !== 'production'
+        && this.config.get<string>('ALLOW_BILLING_DATE_OVERRIDE') === 'true';
+      if (!overrideAllowed) {
         throw new ForbiddenException(`Solo se puede ejecutar el cobro de hoy (${today}).`);
       }
       if (!isIsoDate(dto.date)) throw new BadRequestException('date no es una fecha válida.');
