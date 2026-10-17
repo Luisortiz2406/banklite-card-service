@@ -348,6 +348,7 @@ export class SubscriptionsService {
       idempotencyKey,
     });
     if (authorized.kind === 'declined') return { kind: 'rejected', reason: authorized.reason };
+    if (authorized.kind === 'unavailable') return { kind: 'unavailable', reason: authorized.reason };
 
     const result = await this.banking.pay({
       sourceAccountId: card.accountId,

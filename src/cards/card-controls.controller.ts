@@ -5,7 +5,6 @@ import { CardControlsService } from './card-controls.service';
 import { CardPurchaseDto, UpdateDailyLimitDto, UpdateOnlineDto } from './dto/card-controls.dto';
 
 const userOf = (request: Request): string => (request as any).user.idUser;
-const tokenOf = (request: Request): string => (request as any).accessToken;
 
 /** Compras por internet, límite diario y compra simulada con la tarjeta (solo su dueño). */
 @Controller('cards')
@@ -20,7 +19,7 @@ export class CardControlsController {
 
   @Get(':id/controls')
   get(@Param('id', ParseUUIDPipe) id: string, @Req() request: Request) {
-    return this.controls.get(id, userOf(request), tokenOf(request));
+    return this.controls.get(id, userOf(request));
   }
 
   @Patch(':id/controls/online')
@@ -30,7 +29,7 @@ export class CardControlsController {
 
   @Patch(':id/controls/daily-limit')
   setDailyLimit(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDailyLimitDto, @Req() request: Request) {
-    return this.controls.setDailyLimit(id, userOf(request), tokenOf(request), dto);
+    return this.controls.setDailyLimit(id, userOf(request), dto);
   }
 
   @Post(':id/purchases')

@@ -31,7 +31,7 @@ export class CardsService {
     }
 
     // El límite diario de compras arranca en el límite diario de la cuenta.
-    const { dailyLimit } = await this.accounts.getLimits(account.id, accessToken);
+    const dailyLimit = await this.accounts.getAccountDailyLimit(account.id);
 
     const credentials = this.crypto.createCredentials();
     const card = this.cards.create({

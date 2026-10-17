@@ -6,7 +6,7 @@ import { uuidV5 } from '../subscriptions/billing-dates';
 import { PURCHASE_STORES } from '../subscriptions/catalog';
 import { MerchantsService } from '../subscriptions/merchants.service';
 import { AccountsClientService } from './accounts-client.service';
-import { CARD_EVENTS, CardAuthorizationService, formatCop } from './card-authorization.service';
+import { CARD_EVENTS, CardAuthorizationService, effectiveDailyLimit, formatCop } from './card-authorization.service';
 import { DynamicKeyClientService } from './dynamic-key-client.service';
 import { CardPurchaseDto, UpdateDailyLimitDto } from './dto/card-controls.dto';
 import { CardAuthorization } from './entities/card-authorization.entity';
@@ -36,28 +36,29 @@ export class CardControlsService {
     private readonly outbox: OutboxService,
   ) {}
 
-  async get(cardId: string, userId: string, accessToken: string) {
+  /**
+   * Sin el límite de la cuenta no se puede saber cuánto queda disponible de
+   * verdad, así que si account-service no responde se devuelve 503 en lugar
+   * de mostrar un "Disponible" mayor al real.
+   */
+  async get(cardId: string, userId: string) {
     const card = await this.findOwnedCard(cardId, userId);
-    let accountLimit: number | null = null;
-    try {
-      accountLimit = (await this.accounts.getLimits(card.accountId, accessToken)).dailyLimit;
-    } catch (error) {
-      this.logger.warn(`Sin límite de la cuenta ${card.accountId}: ${(error as Error).message}`);
-    }
-    return this.publicControls(card, await this.authorizations.usedToday(card.id), accountLimit);
+    return this.publicControls(card, await this.authorizations.usedToday(card.id), await this.accounts.getAccountDailyLimit(card.accountId));
   }
 
   async setOnline(cardId: string, userId: string, enabled: boolean) {
     const card = await this.findOwnedCard(cardId, userId);
+    // Antes de guardar: si account-service no responde, no queda un cambio a medias.
+    const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     if (card.onlineEnabled !== enabled) {
       await this.saveChange(card, userId, 'online_enabled', String(card.onlineEnabled), String(enabled), { onlineEnabled: enabled });
     }
-    return this.publicControls(card, await this.authorizations.usedToday(card.id), null);
+    return this.publicControls(card, await this.authorizations.usedToday(card.id), accountLimit);
   }
 
-  async setDailyLimit(cardId: string, userId: string, accessToken: string, dto: UpdateDailyLimitDto) {
+  async setDailyLimit(cardId: string, userId: string, dto: UpdateDailyLimitDto) {
     const card = await this.findOwnedCard(cardId, userId);
-    const { dailyLimit: accountLimit } = await this.accounts.getLimits(card.accountId, accessToken);
+    const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     const { min, max } = this.range(accountLimit);
     if (dto.dailyLimit < min || dto.dailyLimit > max) {
       throw new BadRequestException(`El límite debe estar entre ${formatCop(min)} y ${formatCop(max)} (el límite diario de tu cuenta).`);
@@ -110,6 +111,7 @@ export class CardControlsService {
       merchantName: store.name,
       idempotencyKey,
     });
+    if (authorized.kind === 'unavailable') throw new ServiceUnavailableException('No pudimos validar tu compra en este momento. Inténtalo de nuevo.');
     if (authorized.kind === 'declined') return this.publicPurchase(authorized.authorization, card);
 
     const result = await this.banking.pay({
@@ -158,15 +160,22 @@ export class CardControlsService {
     return { min: Math.min(MIN_DAILY_LIMIT, accountLimit), max: accountLimit };
   }
 
-  private publicControls(card: Card, usedToday: number, accountLimit: number | null) {
-    const dailyLimit = Number(card.dailyLimit);
+  /**
+   * dailyLimit es el que se aplica: el menor entre el de la tarjeta y el de la
+   * cuenta. cardDailyLimit es el que el cliente configuró en la tarjeta.
+   */
+  private publicControls(card: Card, usedToday: number, accountLimit: number) {
+    const dailyLimit = effectiveDailyLimit(card, accountLimit);
     return {
       cardId: card.id,
       onlineEnabled: card.onlineEnabled,
       dailyLimit,
+      cardDailyLimit: Number(card.dailyLimit),
+      accountDailyLimit: accountLimit,
+      cappedByAccount: Number(card.dailyLimit) > accountLimit,
       usedToday,
       availableToday: Math.max(dailyLimit - usedToday, 0),
-      minLimit: accountLimit === null ? MIN_DAILY_LIMIT : this.range(accountLimit).min,
+      minLimit: this.range(accountLimit).min,
       maxLimit: accountLimit,
       currency: card.currency,
     };

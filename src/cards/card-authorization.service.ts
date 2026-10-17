@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { OutboxService } from '../events/outbox.service';
 import { PaymentResult } from '../subscriptions/banking-client.service';
 import { bogotaToday } from '../subscriptions/billing-dates';
+import { AccountsClientService } from './accounts-client.service';
 import { CardAuthorization, CardChannel, CardChargeSource } from './entities/card-authorization.entity';
 import { Card } from './entities/card.entity';
 
@@ -24,7 +25,17 @@ export interface ChargeRequest {
 
 export type AuthorizationResult =
   | { kind: 'reserved'; authorization: CardAuthorization }
-  | { kind: 'declined'; reason: string; authorization: CardAuthorization };
+  | { kind: 'declined'; reason: string; authorization: CardAuthorization }
+  // No se pudo consultar el límite de la cuenta: no se cobra y se puede reintentar.
+  | { kind: 'unavailable'; reason: string };
+
+/**
+ * Límite que se aplica de verdad: el menor entre el de la tarjeta y el límite
+ * diario de la cuenta (una tarjeta anterior puede tener $5.000.000 aunque su
+ * cuenta permita menos).
+ */
+export const effectiveDailyLimit = (card: Card, accountDailyLimit: number) =>
+  Math.min(Number(card.dailyLimit), accountDailyLimit);
 
 export const formatCop = (value: number) =>
   `$ ${Math.round(value).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
@@ -32,7 +43,8 @@ export const formatCop = (value: number) =>
 /**
  * Controles de la tarjeta para CUALQUIER cargo (compras y suscripciones), en
  * este orden: congelada → compra por internet desactivada → límite diario
- * (lo usado hoy en hora de Colombia + el monto) → saldo (lo valida el ledger).
+ * (lo usado hoy en hora de Colombia + el monto, contra el menor entre el
+ * límite de la tarjeta y el de la cuenta) → saldo (lo valida el ledger).
  *
  * El cargo se reserva como 'pending' bajo un candado de la fila de la tarjeta,
  * así dos cargos simultáneos no pueden pasarse juntos del límite. Después de
@@ -43,9 +55,22 @@ export class CardAuthorizationService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly outbox: OutboxService,
+    private readonly accounts: AccountsClientService,
   ) {}
 
   async authorize(request: ChargeRequest): Promise<AuthorizationResult> {
+    // Fuera de la transacción: no se hace una llamada HTTP con la fila bloqueada.
+    let accountDailyLimit: number | null = null;
+    const owner = await this.dataSource.getRepository(Card).findOne({ where: { id: request.cardId } });
+    if (owner) {
+      try {
+        accountDailyLimit = await this.accounts.getAccountDailyLimit(owner.accountId);
+      } catch (error) {
+        if (!(error instanceof ServiceUnavailableException)) throw error;
+        return { kind: 'unavailable', reason: error.message };
+      }
+    }
+
     const result = await this.dataSource.transaction(async (manager) => {
       const card = await manager.findOne(Card, { where: { id: request.cardId }, lock: { mode: 'pessimistic_write' } });
 
@@ -56,7 +81,7 @@ export class CardAuthorizationService {
       if (live && live.cardId === request.cardId) return { kind: 'reserved' as const, authorization: live };
 
       const today = bogotaToday();
-      const reason = await this.declineReason(manager, card, request, today);
+      const reason = await this.declineReason(manager, card, request, today, accountDailyLimit);
       const authorization = manager.create(CardAuthorization, {
         cardId: request.cardId,
         userId: request.userId,
@@ -124,12 +149,18 @@ export class CardAuthorizationService {
     return Number(row.total);
   }
 
-  private async declineReason(manager: EntityManager, card: Card | null, request: ChargeRequest, today: string) {
+  private async declineReason(
+    manager: EntityManager,
+    card: Card | null,
+    request: ChargeRequest,
+    today: string,
+    accountDailyLimit: number | null,
+  ) {
     if (!card || card.userId !== request.userId) return 'La tarjeta asociada ya no está disponible.';
     if (card.status !== 'active') return 'La tarjeta está congelada.';
     if (request.channel === 'online' && !card.onlineEnabled) return 'Tienes desactivadas las compras por internet.';
     const used = await this.usedToday(card.id, manager, today);
-    const limit = Number(card.dailyLimit);
+    const limit = accountDailyLimit === null ? Number(card.dailyLimit) : effectiveDailyLimit(card, accountDailyLimit);
     if (used + request.amount > limit) {
       return `Supera tu límite diario de compras. Hoy te quedan ${formatCop(Math.max(limit - used, 0))}.`;
     }
