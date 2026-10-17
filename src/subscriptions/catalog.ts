@@ -27,3 +27,28 @@ export const SUBSCRIPTION_CATALOG: CatalogItem[] = [
   { code: 'xbox', name: 'Xbox Game Pass', plan: 'Ultimate', price: 44900 },
   { code: 'playstation', name: 'PlayStation Plus', plan: 'Essential', price: 39900 },
 ];
+
+/**
+ * Comercios para "Simular compra con la tarjeta". También tienen su cuenta de
+ * comercio real (la compra se cobra de verdad en el ledger); se guardan en la
+ * misma tabla merchants, pero no aparecen en el catálogo de suscripciones.
+ */
+export interface PurchaseStore {
+  code: string;
+  name: string;
+  channels: ('online' | 'in_store')[];
+}
+
+export const PURCHASE_STORES: PurchaseStore[] = [
+  { code: 'tienda-exito', name: 'Éxito', channels: ['in_store', 'online'] },
+  { code: 'tienda-falabella', name: 'Falabella', channels: ['in_store', 'online'] },
+  { code: 'tienda-juanvaldez', name: 'Juan Valdez Café', channels: ['in_store'] },
+  { code: 'tienda-mercadolibre', name: 'Mercado Libre', channels: ['online'] },
+  { code: 'tienda-rappi', name: 'Rappi', channels: ['online'] },
+];
+
+const SUBSCRIPTION_CODES = new Set(SUBSCRIPTION_CATALOG.map((item) => item.code));
+
+export function isSubscriptionMerchant(code: string): boolean {
+  return SUBSCRIPTION_CODES.has(code);
+}

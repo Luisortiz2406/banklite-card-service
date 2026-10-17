@@ -30,6 +30,9 @@ export class CardsService {
       return { ...this.publicCard(existing), alreadyIssued: true, cardNumber: null, cvv: null };
     }
 
+    // El límite diario de compras arranca en el límite diario de la cuenta.
+    const { dailyLimit } = await this.accounts.getLimits(account.id, accessToken);
+
     const credentials = this.crypto.createCredentials();
     const card = this.cards.create({
       accountId: account.id,
@@ -42,6 +45,8 @@ export class CardsService {
       expiryYear: credentials.expiryYear,
       status: 'active',
       type: 'virtual',
+      onlineEnabled: true,
+      dailyLimit: dailyLimit.toFixed(2),
     });
     try {
       await this.cards.save(card);
@@ -96,6 +101,8 @@ export class CardsService {
       expiryYear: card.expiryYear,
       status: card.status,
       type: card.type,
+      onlineEnabled: card.onlineEnabled,
+      dailyLimit: Number(card.dailyLimit),
       createdAt: card.createdAt,
     };
   }

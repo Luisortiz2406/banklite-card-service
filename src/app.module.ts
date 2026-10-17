@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CardAuthorization } from './cards/entities/card-authorization.entity';
+import { CardSettingsAudit } from './cards/entities/card-settings-audit.entity';
 import { Card } from './cards/entities/card.entity';
 import { CardsModule } from './cards/cards.module';
 import { CardOutbox } from './events/card-outbox.entity';
@@ -36,7 +38,7 @@ import { validateEnv } from './config/env.validation';
       useFactory: (config: ConfigService) => ({
         type: 'postgres' as const,
         url: config.get<string>('DATABASE_URL'),
-        entities: [Card, Subscription, SubscriptionCharge, Merchant, CardOutbox],
+        entities: [Card, CardAuthorization, CardSettingsAudit, Subscription, SubscriptionCharge, Merchant, CardOutbox],
         synchronize: true,
         logging: false,
       }),

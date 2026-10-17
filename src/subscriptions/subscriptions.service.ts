@@ -10,6 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, In, LessThanOrEqual, Not, Repository } from 'typeorm';
+import { CardAuthorizationService } from '../cards/card-authorization.service';
 import { Card } from '../cards/entities/card.entity';
 import { OutboxService } from '../events/outbox.service';
 import { BankingClientService, PaymentResult } from './banking-client.service';
@@ -27,6 +28,7 @@ import { Merchant } from './entities/merchant.entity';
 import { SubscriptionCharge } from './entities/subscription-charge.entity';
 import { Subscription } from './entities/subscription.entity';
 import { MerchantsService } from './merchants.service';
+import { isSubscriptionMerchant } from './catalog';
 
 // Tras el intento del día de cobro hay 3 reintentos (días siguientes); luego se suspende.
 const MAX_RETRIES = 3;
@@ -63,6 +65,7 @@ export class SubscriptionsService {
     private readonly merchants: MerchantsService,
     private readonly banking: BankingClientService,
     private readonly outbox: OutboxService,
+    private readonly authorizations: CardAuthorizationService,
   ) {}
 
   // =====================================================
@@ -70,7 +73,7 @@ export class SubscriptionsService {
   // =====================================================
 
   async catalog() {
-    return (await this.merchants.findAll()).map((merchant) => ({
+    return (await this.merchants.findSubscriptionMerchants()).map((merchant) => ({
       code: merchant.code,
       name: merchant.name,
       plan: merchant.plan,
@@ -94,7 +97,7 @@ export class SubscriptionsService {
 
   /** Inscribe y cobra el primer mes de inmediato. Si el cobro falla, no se crea. */
   async enroll(userId: string, dto: EnrollSubscriptionDto) {
-    const merchant = await this.merchants.findByCode(dto.merchantCode);
+    const merchant = isSubscriptionMerchant(dto.merchantCode) ? await this.merchants.findByCode(dto.merchantCode) : null;
     if (!merchant) throw new NotFoundException('Ese servicio no está en el catálogo.');
     if (!merchant.accountId) {
       throw new ServiceUnavailableException(`${merchant.name} todavía no está disponible. Inténtalo en unos minutos.`);
@@ -325,18 +328,36 @@ export class SubscriptionsService {
     return this.recordRejection(subscription, merchant, card, result.reason, asOf);
   }
 
-  /** Valida la tarjeta y pide el cobro al ledger (que valida saldo y límites). */
+  /**
+   * Pasa por los controles de la tarjeta (una suscripción es una compra por
+   * internet: congelada, compras por internet y límite diario) y pide el cobro
+   * al ledger, que valida saldo y límites de la cuenta.
+   */
   private async attemptCharge(subscription: Subscription, merchant: Merchant, card: Card | null): Promise<PaymentResult> {
     if (!card || card.userId !== subscription.userId) return { kind: 'rejected', reason: 'La tarjeta asociada ya no está disponible.' };
-    if (card.status !== 'active') return { kind: 'rejected', reason: 'La tarjeta está congelada.' };
     if (!merchant.accountId) return { kind: 'unavailable', reason: 'La cuenta del comercio aún no está lista.' };
-    return this.banking.pay({
+    const idempotencyKey = chargeKey(subscription.id, subscription.pendingPeriod);
+    const authorized = await this.authorizations.authorize({
+      cardId: card.id,
+      userId: subscription.userId,
+      amount: Number(subscription.amount),
+      channel: 'online',
+      source: 'subscription',
+      merchantCode: merchant.code,
+      merchantName: merchant.name,
+      idempotencyKey,
+    });
+    if (authorized.kind === 'declined') return { kind: 'rejected', reason: authorized.reason };
+
+    const result = await this.banking.pay({
       sourceAccountId: card.accountId,
       merchantAccountId: merchant.accountId,
       amount: Number(subscription.amount),
-      idempotencyKey: chargeKey(subscription.id, subscription.pendingPeriod),
+      idempotencyKey,
       description: `Suscripción ${merchant.name} · ${merchant.plan}`.slice(0, 140),
     });
+    await this.authorizations.complete(authorized.authorization, result);
+    return result;
   }
 
   private async recordSuccess(subscription: Subscription, merchant: Merchant, card: Card, transactionId: string) {

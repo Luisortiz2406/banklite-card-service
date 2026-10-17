@@ -37,6 +37,15 @@ export class Card {
   @Column({ type: 'varchar', default: 'virtual' })
   type: 'virtual';
 
+  // Controles de la tarjeta. Columnas nuevas con DEFAULT: las tarjetas que ya
+  // existían quedan con compras por internet activas y $5.000.000 (el límite
+  // diario por defecto de las cuentas); las nuevas toman el de su cuenta.
+  @Column({ name: 'online_enabled', type: 'boolean', default: true })
+  onlineEnabled: boolean;
+
+  @Column({ name: 'daily_limit', type: 'numeric', precision: 18, scale: 2, default: 5000000 })
+  dailyLimit: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

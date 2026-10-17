@@ -2,13 +2,13 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BankingClientService } from './banking-client.service';
-import { SUBSCRIPTION_CATALOG } from './catalog';
+import { isSubscriptionMerchant, PURCHASE_STORES, SUBSCRIPTION_CATALOG } from './catalog';
 import { Merchant } from './entities/merchant.entity';
 
 const RETRY_MS = 30_000;
 
 /**
- * Al arrancar, sincroniza el catálogo en la tabla merchants y se asegura de que
+ * Al arrancar, sincroniza el catálogo (suscripciones y tiendas de compras) en la tabla merchants y se asegura de que
  * cada comercio tenga su cuenta en account-service. Si account-service no está
  * listo, reintenta cada 30 s sin bloquear el arranque del servicio.
  */
@@ -29,6 +29,16 @@ export class MerchantsService implements OnApplicationBootstrap, OnModuleDestroy
         name: item.name,
         plan: item.plan,
         price: item.price.toFixed(2),
+        currency: 'COP',
+      })),
+      ['code'],
+    );
+    await this.merchants.upsert(
+      PURCHASE_STORES.map((store) => ({
+        code: store.code,
+        name: store.name,
+        plan: 'Compras con tarjeta',
+        price: '0.00',
         currency: 'COP',
       })),
       ['code'],
@@ -59,6 +69,11 @@ export class MerchantsService implements OnApplicationBootstrap, OnModuleDestroy
 
   async findAll() {
     return this.merchants.find({ order: { name: 'ASC' } });
+  }
+
+  /** Solo los comercios del catálogo de suscripciones. */
+  async findSubscriptionMerchants() {
+    return (await this.findAll()).filter((merchant) => isSubscriptionMerchant(merchant.code));
   }
 
   async findByCode(code: string) {
