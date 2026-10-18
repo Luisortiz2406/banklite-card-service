@@ -58,7 +58,9 @@ export class MerchantsService implements OnApplicationBootstrap, OnModuleDestroy
         const account = await this.banking.ensureMerchantAccount(merchant.code, merchant.name, merchant.currency);
         await this.merchants.update(merchant.code, { accountId: account.id, accountNumber: account.accountNumber });
       } catch (error) {
-        this.logger.warn(`Cuenta del comercio ${merchant.code} pendiente: ${(error as Error).message}. Reintento en 30 s.`);
+        this.logger.warn(
+          `Cuenta del comercio ${merchant.code} pendiente: ${(error as Error).message}. Reintento en 30 s.`,
+        );
         this.timer = setTimeout(() => void this.ensureAccounts(), RETRY_MS);
         return false;
       }

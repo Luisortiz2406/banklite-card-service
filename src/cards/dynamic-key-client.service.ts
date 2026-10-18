@@ -27,7 +27,8 @@ export class DynamicKeyClientService {
     if (response.status === 403 && /clave dinámica/i.test(payload?.message || '')) {
       throw new ForbiddenException(payload.message);
     }
-    if (!response.ok) throw new ServiceUnavailableException('No se pudo validar la clave dinámica. Inténtalo de nuevo.');
+    if (!response.ok)
+      throw new ServiceUnavailableException('No se pudo validar la clave dinámica. Inténtalo de nuevo.');
     if (payload?.valid !== true) {
       throw new BadRequestException(payload?.message || 'Clave dinámica incorrecta o vencida.');
     }

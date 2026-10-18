@@ -90,8 +90,9 @@ export class InternalSubscriptionsController {
     if (dto.date && dto.date !== today) {
       // Doble control: con NODE_ENV=production (fijado en el Dockerfile) se
       // rechaza aunque el flag quede activado por error en el entorno.
-      const overrideAllowed = this.config.get<string>('NODE_ENV') !== 'production'
-        && this.config.get<string>('ALLOW_BILLING_DATE_OVERRIDE') === 'true';
+      const overrideAllowed =
+        this.config.get<string>('NODE_ENV') !== 'production' &&
+        this.config.get<string>('ALLOW_BILLING_DATE_OVERRIDE') === 'true';
       if (!overrideAllowed) {
         throw new ForbiddenException(`Solo se puede ejecutar el cobro de hoy (${today}).`);
       }

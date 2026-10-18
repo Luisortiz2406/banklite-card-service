@@ -14,15 +14,7 @@ import { CardAuthorizationService } from '../cards/card-authorization.service';
 import { Card } from '../cards/entities/card.entity';
 import { OutboxService } from '../events/outbox.service';
 import { BankingClientService, PaymentResult } from './banking-client.service';
-import {
-  addDays,
-  bogotaToday,
-  chargeKey,
-  dueDate,
-  firstPeriodOnOrAfter,
-  nextPeriod,
-  periodOf,
-} from './billing-dates';
+import { addDays, bogotaToday, chargeKey, dueDate, firstPeriodOnOrAfter, nextPeriod, periodOf } from './billing-dates';
 import { EnrollSubscriptionDto } from './dto/subscription.dto';
 import { Merchant } from './entities/merchant.entity';
 import { SubscriptionCharge } from './entities/subscription-charge.entity';
@@ -89,15 +81,15 @@ export class SubscriptionsService {
       order: { createdAt: 'ASC' },
     });
     const items = await this.publicMany(subscriptions);
-    const monthlyTotal = items
-      .filter((item) => item.status === 'active')
-      .reduce((sum, item) => sum + item.amount, 0);
+    const monthlyTotal = items.filter((item) => item.status === 'active').reduce((sum, item) => sum + item.amount, 0);
     return { items, monthlyTotal, currency: 'COP' };
   }
 
   /** Inscribe y cobra el primer mes de inmediato. Si el cobro falla, no se crea. */
   async enroll(userId: string, dto: EnrollSubscriptionDto) {
-    const merchant = isSubscriptionMerchant(dto.merchantCode) ? await this.merchants.findByCode(dto.merchantCode) : null;
+    const merchant = isSubscriptionMerchant(dto.merchantCode)
+      ? await this.merchants.findByCode(dto.merchantCode)
+      : null;
     if (!merchant) throw new NotFoundException('Ese servicio no está en el catálogo.');
     if (!merchant.accountId) {
       throw new ServiceUnavailableException(`${merchant.name} todavía no está disponible. Inténtalo en unos minutos.`);
@@ -106,8 +98,10 @@ export class SubscriptionsService {
     const card = await this.cards.findOne({ where: { id: dto.cardId } });
     // La tarjeta debe ser del usuario de la sesión.
     if (!card || card.userId !== userId) throw new ForbiddenException('La tarjeta no te pertenece.');
-    if (card.status !== 'active') throw new BadRequestException('La tarjeta está congelada. Reactívala para inscribir la suscripción.');
-    if (card.currency !== merchant.currency) throw new BadRequestException('La tarjeta y el servicio deben usar la misma moneda.');
+    if (card.status !== 'active')
+      throw new BadRequestException('La tarjeta está congelada. Reactívala para inscribir la suscripción.');
+    if (card.currency !== merchant.currency)
+      throw new BadRequestException('La tarjeta y el servicio deben usar la misma moneda.');
 
     const existing = await this.subscriptions.findOne({
       where: { userId, merchantCode: merchant.code, status: Not('cancelled') },
@@ -132,14 +126,16 @@ export class SubscriptionsService {
     try {
       await this.subscriptions.save(subscription);
     } catch (error) {
-      if ((error as any)?.code === '23505') throw new ConflictException(`Ya tienes una suscripción a ${merchant.name}.`);
+      if ((error as any)?.code === '23505')
+        throw new ConflictException(`Ya tienes una suscripción a ${merchant.name}.`);
       throw error;
     }
 
     const result = await this.attemptCharge(subscription, merchant, card);
     if (result.kind !== 'approved') {
       await this.subscriptions.delete({ id: subscription.id, status: 'pending' });
-      if (result.kind === 'unavailable') throw new ServiceUnavailableException(`No se pudo cobrar el primer mes: ${result.reason}`);
+      if (result.kind === 'unavailable')
+        throw new ServiceUnavailableException(`No se pudo cobrar el primer mes: ${result.reason}`);
       throw new BadRequestException(`No se pudo cobrar el primer mes: ${result.reason}`);
     }
 
@@ -222,16 +218,18 @@ export class SubscriptionsService {
       const result = await this.attemptCharge(subscription, merchant, card);
       if (result.kind === 'unavailable') throw new ServiceUnavailableException(`No se pudo cobrar: ${result.reason}`);
       if (result.kind === 'rejected') {
-        await this.chargeRows.save(this.chargeRows.create({
-          subscriptionId: subscription.id,
-          period,
-          attempt: 1,
-          status: 'rejected',
-          reason: result.reason,
-          amount: subscription.amount,
-          currency: subscription.currency,
-          ledgerTransactionId: null,
-        }));
+        await this.chargeRows.save(
+          this.chargeRows.create({
+            subscriptionId: subscription.id,
+            period,
+            attempt: 1,
+            status: 'rejected',
+            reason: result.reason,
+            amount: subscription.amount,
+            currency: subscription.currency,
+            ledgerTransactionId: null,
+          }),
+        );
         throw new BadRequestException(`No se pudo reactivar: ${result.reason}`);
       }
       subscription.suspendedAt = null;
@@ -289,7 +287,9 @@ export class SubscriptionsService {
 
   private async sendReminders(asOf: string) {
     const target = addDays(asOf, REMINDER_DAYS_BEFORE);
-    const candidates = await this.subscriptions.find({ where: { status: 'active', nextChargeDate: target, retryCount: 0 } });
+    const candidates = await this.subscriptions.find({
+      where: { status: 'active', nextChargeDate: target, retryCount: 0 },
+    });
     let sent = 0;
     for (const subscription of candidates) {
       if (subscription.remindedFor === subscription.pendingPeriod) continue;
@@ -333,8 +333,13 @@ export class SubscriptionsService {
    * internet: congelada, compras por internet y límite diario) y pide el cobro
    * al ledger, que valida saldo y límites de la cuenta.
    */
-  private async attemptCharge(subscription: Subscription, merchant: Merchant, card: Card | null): Promise<PaymentResult> {
-    if (!card || card.userId !== subscription.userId) return { kind: 'rejected', reason: 'La tarjeta asociada ya no está disponible.' };
+  private async attemptCharge(
+    subscription: Subscription,
+    merchant: Merchant,
+    card: Card | null,
+  ): Promise<PaymentResult> {
+    if (!card || card.userId !== subscription.userId)
+      return { kind: 'rejected', reason: 'La tarjeta asociada ya no está disponible.' };
     if (!merchant.accountId) return { kind: 'unavailable', reason: 'La cuenta del comercio aún no está lista.' };
     const idempotencyKey = chargeKey(subscription.id, subscription.pendingPeriod);
     const authorized = await this.authorizations.authorize({
@@ -370,16 +375,18 @@ export class SubscriptionsService {
         where: { subscriptionId: subscription.id, period: paidPeriod, status: 'succeeded' },
       });
       if (!already) {
-        await manager.save(manager.create(SubscriptionCharge, {
-          subscriptionId: subscription.id,
-          period: paidPeriod,
-          attempt,
-          status: 'succeeded',
-          reason: null,
-          amount: subscription.amount,
-          currency: subscription.currency,
-          ledgerTransactionId: transactionId,
-        }));
+        await manager.save(
+          manager.create(SubscriptionCharge, {
+            subscriptionId: subscription.id,
+            period: paidPeriod,
+            attempt,
+            status: 'succeeded',
+            reason: null,
+            amount: subscription.amount,
+            currency: subscription.currency,
+            ledgerTransactionId: transactionId,
+          }),
+        );
       }
       subscription.status = 'active';
       subscription.lastChargedAt = new Date();
@@ -408,22 +415,30 @@ export class SubscriptionsService {
     const suspend = subscription.retryCount >= MAX_RETRIES;
 
     await this.dataSource.transaction(async (manager: EntityManager) => {
-      await manager.save(manager.create(SubscriptionCharge, {
-        subscriptionId: subscription.id,
-        period,
-        attempt,
-        status: 'rejected',
-        reason,
-        amount: subscription.amount,
-        currency: subscription.currency,
-        ledgerTransactionId: null,
-      }));
+      await manager.save(
+        manager.create(SubscriptionCharge, {
+          subscriptionId: subscription.id,
+          period,
+          attempt,
+          status: 'rejected',
+          reason,
+          amount: subscription.amount,
+          currency: subscription.currency,
+          ledgerTransactionId: null,
+        }),
+      );
       const events: { key: string; payload: Record<string, unknown> }[] = [];
       if (suspend) {
         subscription.status = 'suspended';
         subscription.suspendedAt = new Date();
-        events.push({ key: SUBSCRIPTION_EVENTS.rejected, payload: this.eventPayload(subscription, merchant, card, { period, reason, attempt, final: true }) });
-        events.push({ key: SUBSCRIPTION_EVENTS.suspended, payload: this.eventPayload(subscription, merchant, card, { period, reason }) });
+        events.push({
+          key: SUBSCRIPTION_EVENTS.rejected,
+          payload: this.eventPayload(subscription, merchant, card, { period, reason, attempt, final: true }),
+        });
+        events.push({
+          key: SUBSCRIPTION_EVENTS.suspended,
+          payload: this.eventPayload(subscription, merchant, card, { period, reason }),
+        });
       } else {
         subscription.retryCount += 1;
         subscription.nextChargeDate = addDays(asOf, 1);
@@ -450,7 +465,12 @@ export class SubscriptionsService {
   // AUXILIARES
   // =====================================================
 
-  private eventPayload(subscription: Subscription, merchant: Merchant, card: Card | null, extra: Record<string, unknown>) {
+  private eventPayload(
+    subscription: Subscription,
+    merchant: Merchant,
+    card: Card | null,
+    extra: Record<string, unknown>,
+  ) {
     return {
       idUser: subscription.userId,
       subscriptionId: subscription.id,

@@ -46,10 +46,7 @@ export class CardCryptoService implements OnModuleInit {
     try {
       const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey(), Buffer.from(ivHex, 'hex'));
       decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
-      return Buffer.concat([
-        decipher.update(Buffer.from(encryptedHex, 'hex')),
-        decipher.final(),
-      ]).toString('utf8');
+      return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
     } catch {
       throw new ServiceUnavailableException('No se pudo descifrar la tarjeta. Verifica CARD_ENCRYPTION_KEY.');
     }
@@ -58,7 +55,9 @@ export class CardCryptoService implements OnModuleInit {
   private encryptionKey(): Buffer {
     const hex = this.config.get<string>('CARD_ENCRYPTION_KEY') || '';
     if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
-      throw new ServiceUnavailableException('CARD_ENCRYPTION_KEY debe contener exactamente 64 caracteres hexadecimales.');
+      throw new ServiceUnavailableException(
+        'CARD_ENCRYPTION_KEY debe contener exactamente 64 caracteres hexadecimales.',
+      );
     }
     return Buffer.from(hex, 'hex');
   }

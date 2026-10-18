@@ -25,7 +25,8 @@ export class AccountsClientService {
       throw new ServiceUnavailableException('No se pudo contactar Account Service.');
     }
     if (response.status === 401) throw new UnauthorizedException('La sesión no es válida para consultar la cuenta.');
-    if (response.status === 403 || response.status === 404) throw new ForbiddenException('No tienes acceso a esa cuenta.');
+    if (response.status === 403 || response.status === 404)
+      throw new ForbiddenException('No tienes acceso a esa cuenta.');
     if (!response.ok) throw new ServiceUnavailableException('No se pudo validar la cuenta en Account Service.');
     return response.json() as Promise<CardAccountInfo>;
   }
@@ -48,9 +49,10 @@ export class AccountsClientService {
       throw new ServiceUnavailableException('No se pudo contactar Account Service.');
     }
     if (!response.ok) throw new ServiceUnavailableException('No se pudo consultar el límite diario de la cuenta.');
-    const body = await response.json() as { dailyLimit: number };
+    const body = (await response.json()) as { dailyLimit: number };
     const limit = Number(body.dailyLimit);
-    if (!Number.isFinite(limit)) throw new ServiceUnavailableException('Account Service no devolvió el límite diario de la cuenta.');
+    if (!Number.isFinite(limit))
+      throw new ServiceUnavailableException('Account Service no devolvió el límite diario de la cuenta.');
     return limit;
   }
 }

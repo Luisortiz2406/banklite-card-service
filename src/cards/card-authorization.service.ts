@@ -112,25 +112,30 @@ export class CardAuthorizationService {
   async complete(authorization: CardAuthorization, result: PaymentResult) {
     if (authorization.status === 'approved') return;
     if (result.kind === 'approved') {
-      await this.dataSource.getRepository(CardAuthorization).update(
-        { id: authorization.id },
-        { status: 'approved', reason: null, ledgerTransactionId: result.transactionId },
-      );
+      await this.dataSource
+        .getRepository(CardAuthorization)
+        .update(
+          { id: authorization.id },
+          { status: 'approved', reason: null, ledgerTransactionId: result.transactionId },
+        );
       authorization.status = 'approved';
       authorization.ledgerTransactionId = result.transactionId;
       return;
     }
     if (result.kind === 'unavailable') {
       // No cuenta en el límite; el reintento usa la misma clave y el ledger no duplica.
-      await this.dataSource.getRepository(CardAuthorization).update(
-        { id: authorization.id },
-        { status: 'error', reason: result.reason.slice(0, 200) },
-      );
+      await this.dataSource
+        .getRepository(CardAuthorization)
+        .update({ id: authorization.id }, { status: 'error', reason: result.reason.slice(0, 200) });
       authorization.status = 'error';
       return;
     }
     await this.dataSource.transaction(async (manager) => {
-      await manager.update(CardAuthorization, { id: authorization.id }, { status: 'declined', reason: result.reason.slice(0, 200) });
+      await manager.update(
+        CardAuthorization,
+        { id: authorization.id },
+        { status: 'declined', reason: result.reason.slice(0, 200) },
+      );
       authorization.status = 'declined';
       authorization.reason = result.reason.slice(0, 200);
       const card = await manager.findOne(Card, { where: { id: authorization.cardId } });
@@ -173,15 +178,17 @@ export class CardAuthorizationService {
    */
   private async enqueueDeclined(manager: EntityManager, authorization: CardAuthorization, card: Card | null) {
     if (authorization.source !== 'purchase') return;
-    await this.outbox.enqueue(manager, CARD_EVENTS.chargeDeclined, [{
-      idUser: authorization.userId,
-      cardId: authorization.cardId,
-      cardLast4: card?.lastFour ?? null,
-      merchantName: authorization.merchantName,
-      channel: authorization.channel,
-      amount: Number(authorization.amount),
-      currency: authorization.currency,
-      reason: authorization.reason,
-    }]);
+    await this.outbox.enqueue(manager, CARD_EVENTS.chargeDeclined, [
+      {
+        idUser: authorization.userId,
+        cardId: authorization.cardId,
+        cardLast4: card?.lastFour ?? null,
+        merchantName: authorization.merchantName,
+        channel: authorization.channel,
+        amount: Number(authorization.amount),
+        currency: authorization.currency,
+        reason: authorization.reason,
+      },
+    ]);
   }
 }

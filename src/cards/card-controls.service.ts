@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { OutboxService } from '../events/outbox.service';
 import { BankingClientService } from '../subscriptions/banking-client.service';
@@ -43,7 +50,11 @@ export class CardControlsService {
    */
   async get(cardId: string, userId: string) {
     const card = await this.findOwnedCard(cardId, userId);
-    return this.publicControls(card, await this.authorizations.usedToday(card.id), await this.accounts.getAccountDailyLimit(card.accountId));
+    return this.publicControls(
+      card,
+      await this.authorizations.usedToday(card.id),
+      await this.accounts.getAccountDailyLimit(card.accountId),
+    );
   }
 
   async setOnline(cardId: string, userId: string, enabled: boolean) {
@@ -51,7 +62,9 @@ export class CardControlsService {
     // Antes de guardar: si account-service no responde, no queda un cambio a medias.
     const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     if (card.onlineEnabled !== enabled) {
-      await this.saveChange(card, userId, 'online_enabled', String(card.onlineEnabled), String(enabled), { onlineEnabled: enabled });
+      await this.saveChange(card, userId, 'online_enabled', String(card.onlineEnabled), String(enabled), {
+        onlineEnabled: enabled,
+      });
     }
     return this.publicControls(card, await this.authorizations.usedToday(card.id), accountLimit);
   }
@@ -61,13 +74,17 @@ export class CardControlsService {
     const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     const { min, max } = this.range(accountLimit);
     if (dto.dailyLimit < min || dto.dailyLimit > max) {
-      throw new BadRequestException(`El límite debe estar entre ${formatCop(min)} y ${formatCop(max)} (el límite diario de tu cuenta).`);
+      throw new BadRequestException(
+        `El límite debe estar entre ${formatCop(min)} y ${formatCop(max)} (el límite diario de tu cuenta).`,
+      );
     }
     await this.dynamicKeys.verify(userId, dto.dynamicCode);
 
     const current = Number(card.dailyLimit);
     if (current !== dto.dailyLimit) {
-      await this.saveChange(card, userId, 'daily_limit', current.toFixed(0), String(dto.dailyLimit), { dailyLimit: dto.dailyLimit.toFixed(2) });
+      await this.saveChange(card, userId, 'daily_limit', current.toFixed(0), String(dto.dailyLimit), {
+        dailyLimit: dto.dailyLimit.toFixed(2),
+      });
     }
     return this.publicControls(card, await this.authorizations.usedToday(card.id), accountLimit);
   }
@@ -89,7 +106,8 @@ export class CardControlsService {
       throw new BadRequestException(`${store.name} no recibe compras ${CHANNEL_TEXT[dto.channel]}.`);
     }
     const merchant = await this.merchants.findByCode(store.code);
-    if (!merchant?.accountId) throw new ServiceUnavailableException(`${store.name} todavía no está disponible. Inténtalo en unos minutos.`);
+    if (!merchant?.accountId)
+      throw new ServiceUnavailableException(`${store.name} todavía no está disponible. Inténtalo en unos minutos.`);
 
     // La clave del ledger se deriva de la tarjeta + la del cliente: reenviar el mismo intento no cobra dos veces.
     const idempotencyKey = uuidV5(`card-purchase:${card.id}:${dto.idempotencyKey}`);
@@ -111,7 +129,8 @@ export class CardControlsService {
       merchantName: store.name,
       idempotencyKey,
     });
-    if (authorized.kind === 'unavailable') throw new ServiceUnavailableException('No pudimos validar tu compra en este momento. Inténtalo de nuevo.');
+    if (authorized.kind === 'unavailable')
+      throw new ServiceUnavailableException('No pudimos validar tu compra en este momento. Inténtalo de nuevo.');
     if (authorized.kind === 'declined') return this.publicPurchase(authorized.authorization, card);
 
     const result = await this.banking.pay({
@@ -123,7 +142,9 @@ export class CardControlsService {
     });
     await this.authorizations.complete(authorized.authorization, result);
     if (result.kind === 'unavailable') {
-      throw new ServiceUnavailableException('No pudimos confirmar la compra. Inténtalo de nuevo: no se cobrará dos veces.');
+      throw new ServiceUnavailableException(
+        'No pudimos confirmar la compra. Inténtalo de nuevo: no se cobrará dos veces.',
+      );
     }
     return this.publicPurchase(authorized.authorization, card);
   }
@@ -142,15 +163,17 @@ export class CardControlsService {
       // Solo la columna que cambió, para no pisar un cambio simultáneo de la otra.
       await manager.update(Card, { id: card.id }, changes);
       await manager.save(manager.create(CardSettingsAudit, { cardId: card.id, userId, field, oldValue, newValue }));
-      await this.outbox.enqueue(manager, CARD_EVENTS.controlsChanged, [{
-        idUser: userId,
-        cardId: card.id,
-        cardLast4: card.lastFour,
-        field,
-        onlineEnabled: card.onlineEnabled,
-        dailyLimit: Number(card.dailyLimit),
-        currency: card.currency,
-      }]);
+      await this.outbox.enqueue(manager, CARD_EVENTS.controlsChanged, [
+        {
+          idUser: userId,
+          cardId: card.id,
+          cardLast4: card.lastFour,
+          field,
+          onlineEnabled: card.onlineEnabled,
+          dailyLimit: Number(card.dailyLimit),
+          currency: card.currency,
+        },
+      ]);
     });
     this.logger.log(`Tarjeta ${card.id}: ${field} ${oldValue} → ${newValue}`);
     void this.outbox.flush();

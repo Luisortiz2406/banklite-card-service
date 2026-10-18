@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AccountsClientService } from './accounts-client.service';
@@ -22,7 +28,8 @@ export class CardsService {
 
   async issue(dto: IssueCardDto, userId: string, accessToken: string) {
     const account = await this.accounts.getOwnedAccount(dto.accountId, accessToken);
-    if (account.status !== 'active') throw new BadRequestException('La cuenta debe estar activa para emitir una tarjeta.');
+    if (account.status !== 'active')
+      throw new BadRequestException('La cuenta debe estar activa para emitir una tarjeta.');
 
     const existing = await this.cards.findOne({ where: { accountId: account.id } });
     if (existing) {

@@ -26,11 +26,7 @@ export class CardsController {
   }
 
   @Patch(':id/status')
-  updateStatus(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateCardStatusDto,
-    @Req() request: Request,
-  ) {
+  updateStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCardStatusDto, @Req() request: Request) {
     return this.cards.updateStatus(id, dto, (request as any).user.idUser);
   }
 }
