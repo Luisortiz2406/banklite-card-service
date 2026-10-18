@@ -7,6 +7,7 @@ import { StaffAuthGuard } from '../common/staff/staff-auth.guard';
 import { EventsModule } from '../events/events.module';
 import { CommerceModule } from '../subscriptions/commerce.module';
 import { AccountsClientService } from './accounts-client.service';
+import { CardsCatalogController } from './cards-catalog.controller';
 import { AdminCardsController } from './admin-cards.controller';
 import { CardAuthorizationService } from './card-authorization.service';
 import { CardControlsController } from './card-controls.controller';
@@ -27,7 +28,7 @@ import { Card } from './entities/card.entity';
     EventsModule,
     CommerceModule,
   ],
-  controllers: [AdminCardsController, CardControlsController, CardsController],
+  controllers: [CardsCatalogController, AdminCardsController, CardControlsController, CardsController],
   providers: [
     CardsService,
     CardControlsService,
