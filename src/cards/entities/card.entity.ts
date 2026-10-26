@@ -16,8 +16,10 @@ export class Card {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ name: 'pan_encrypted', type: 'text' })
-  encryptedPan: string;
+  // Número completo cifrado. Al cancelar la tarjeta (cierre de la cuenta) se borra:
+  // queda null y solo se conservan los últimos 4 dígitos.
+  @Column({ name: 'pan_encrypted', type: 'text', nullable: true })
+  encryptedPan: string | null;
 
   @Column({ name: 'last_four', type: 'varchar', length: 4 })
   lastFour: string;

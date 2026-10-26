@@ -147,8 +147,15 @@ describeWithDb('Cierre de cuenta en card-service (PostgreSQL)', () => {
     });
 
     for (const id of [activa.id, congelada.id]) {
-      expect(await cards.findOneByOrFail({ id })).toMatchObject({ status: 'cancelled', cancelledAt: new Date(fecha) });
+      // Se borra el número cifrado y quedan solo los últimos 4 dígitos.
+      expect(await cards.findOneByOrFail({ id })).toMatchObject({
+        status: 'cancelled',
+        cancelledAt: new Date(fecha),
+        encryptedPan: null,
+        lastFour: '0001',
+      });
     }
+    expect((await cards.findOneByOrFail({ id: deCarlos.id })).encryptedPan).toBe('demo:no-revelable');
     expect(await subscriptions.find({ where: { userId: ANA } })).toEqual(
       expect.arrayContaining([expect.objectContaining({ status: 'cancelled', cancelledAt: new Date(fecha) })]),
     );
@@ -165,6 +172,10 @@ describeWithDb('Cierre de cuenta en card-service (PostgreSQL)', () => {
       suscripciones: 0,
     });
     expect((await cards.findOneByOrFail({ id: card.id })).cancelledAt).toEqual(new Date('2026-10-26T15:00:00.000Z'));
+    // Una cancelada que por algún motivo conservara el número también se limpia.
+    await cards.update(card.id, { encryptedPan: 'demo:no-revelable' });
+    await closure.handleAccountClosed({ idUser: ANA });
+    expect((await cards.findOneByOrFail({ id: card.id })).encryptedPan).toBeNull();
   });
 
   it('una tarjeta cancelada no se reactiva, no se revela, no cambia sus controles y rechaza las compras', async () => {

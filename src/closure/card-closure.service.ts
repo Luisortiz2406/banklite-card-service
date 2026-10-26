@@ -10,7 +10,8 @@ export interface AccountClosedData {
 
 /**
  * El cliente canceló su cuenta (evento account.closed de account-service):
- * se cancelan todas sus tarjetas y suscripciones. No se borra nada.
+ * se cancelan todas sus tarjetas y suscripciones y se borra el número cifrado de
+ * las tarjetas (quedan solo los últimos 4 dígitos). Las filas no se borran.
  * Idempotente: procesar el evento dos veces no cambia la primera fecha.
  */
 @Injectable()
@@ -27,8 +28,10 @@ export class CardClosureService {
       const cards = await manager.update(
         Card,
         { userId: data.idUser, status: Not('cancelled') },
-        { status: 'cancelled', cancelledAt },
+        { status: 'cancelled', cancelledAt, encryptedPan: null },
       );
+      // Por si una ya cancelada conservara el número (no debería): se borra igual.
+      await manager.update(Card, { userId: data.idUser, status: 'cancelled' }, { encryptedPan: null });
       // Las pendientes (cobrando el primer mes) también: el cobro ya no pasará los controles.
       const subscriptions = await manager.update(
         Subscription,

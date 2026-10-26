@@ -96,7 +96,7 @@ CREATE TABLE public.cards (
     account_id uuid NOT NULL,
     account_number character varying(11) NOT NULL,
     user_id uuid NOT NULL,
-    pan_encrypted text NOT NULL,
+    pan_encrypted text,
     last_four character varying(4) NOT NULL,
     currency character varying(3) NOT NULL,
     expiry_month smallint NOT NULL,

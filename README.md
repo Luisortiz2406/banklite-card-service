@@ -22,7 +22,7 @@ compras y los cobros de suscripciones se registran en ledger-service; cada inten
 - Límite diario por tarjeta (mínimo publicado en `GET /cards/catalog`, máximo el límite diario de la cuenta) sumando lo aprobado del día.
 - El número completo solo se descifra para el titular de la tarjeta.
 - Suscripciones: aviso 3 días antes, cobro mensual, rechazo por fondos o controles y suspensión tras 3 intentos fallidos.
-- Cuenta cancelada por el cliente (`account.closed`): todas sus tarjetas pasan a `cancelled` y sus suscripciones a `cancelled`, sin borrar nada. Una tarjeta cancelada es definitiva: no se reactiva, no se revela el número, no cambia sus controles y rechaza toda compra («La tarjeta fue cancelada.»). Un cobro de suscripción que termina después del cierre no la reactiva.
+- Cuenta cancelada por el cliente (`account.closed`): todas sus tarjetas pasan a `cancelled` y sus suscripciones a `cancelled`; se borra el número cifrado de la tarjeta (`pan_encrypted` queda vacío) y solo se conservan los últimos 4 dígitos. Las filas no se borran. Una tarjeta cancelada es definitiva: no se reactiva, no se revela el número, no cambia sus controles y rechaza toda compra («La tarjeta fue cancelada.»). Un cobro de suscripción que termina después del cierre no la reactiva.
 
 **Comunicación con otros servicios**
 
@@ -50,7 +50,7 @@ rutas internas.
 
 | Tabla | Contenido |
 |---|---|
-| `cards` | Tarjetas (número cifrado, últimos 4, estado `active` / `frozen` / `cancelled`, controles). `cancelled_at`: cuándo se canceló por el cierre de la cuenta. |
+| `cards` | Tarjetas (número cifrado, últimos 4, estado `active` / `frozen` / `cancelled`, controles). `cancelled_at`: cuándo se canceló por el cierre de la cuenta; desde ahí `pan_encrypted` es `NULL`. |
 | `card_authorizations` | Intentos de cargo aprobados y rechazados (motivo). |
 | `card_settings_audit` | Cambios de controles hechos por el cliente. |
 | `merchants` | Comercios de compras y suscripciones. |

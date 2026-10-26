@@ -74,7 +74,7 @@ export class CardsService {
 
   async reveal(cardId: string, userId: string) {
     const card = await this.findOwnedCard(cardId, userId);
-    if (card.status === 'cancelled') throw new ConflictException('La tarjeta fue cancelada.');
+    if (card.status === 'cancelled' || !card.encryptedPan) throw new ConflictException('La tarjeta fue cancelada.');
     return {
       id: card.id,
       cardNumber: this.crypto.decrypt(card.encryptedPan),
