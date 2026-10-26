@@ -162,6 +162,7 @@ export class CardAuthorizationService {
     accountDailyLimit: number | null,
   ) {
     if (!card || card.userId !== request.userId) return 'La tarjeta asociada ya no está disponible.';
+    if (card.status === 'cancelled') return 'La tarjeta fue cancelada.';
     if (card.status !== 'active') return 'La tarjeta está congelada.';
     if (request.channel === 'online' && !card.onlineEnabled) return 'Tienes desactivadas las compras por internet.';
     const used = await this.usedToday(card.id, manager, today);

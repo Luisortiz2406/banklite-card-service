@@ -74,6 +74,7 @@ export class CardsService {
 
   async reveal(cardId: string, userId: string) {
     const card = await this.findOwnedCard(cardId, userId);
+    if (card.status === 'cancelled') throw new ConflictException('La tarjeta fue cancelada.');
     return {
       id: card.id,
       cardNumber: this.crypto.decrypt(card.encryptedPan),
@@ -85,6 +86,7 @@ export class CardsService {
 
   async updateStatus(cardId: string, dto: UpdateCardStatusDto, userId: string) {
     const card = await this.findOwnedCard(cardId, userId);
+    if (card.status === 'cancelled') throw new ConflictException('La tarjeta fue cancelada y no se puede reactivar.');
     card.status = dto.status;
     await this.cards.save(card);
     return this.publicCard(card);

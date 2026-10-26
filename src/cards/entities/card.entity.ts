@@ -31,8 +31,13 @@ export class Card {
   @Column({ name: 'expiry_year', type: 'smallint' })
   expiryYear: number;
 
+  // cancelled: el cliente canceló su cuenta (evento account.closed). Es definitivo:
+  // no se reactiva, no se revela el número y toda compra se rechaza.
   @Column({ type: 'varchar', default: 'active' })
-  status: 'active' | 'frozen';
+  status: 'active' | 'frozen' | 'cancelled';
+
+  @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
+  cancelledAt: Date | null;
 
   @Column({ type: 'varchar', default: 'virtual' })
   type: 'virtual';

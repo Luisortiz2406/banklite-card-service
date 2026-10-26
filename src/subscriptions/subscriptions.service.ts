@@ -388,7 +388,10 @@ export class SubscriptionsService {
           }),
         );
       }
-      subscription.status = 'active';
+      // Si mientras se cobraba se canceló (el cliente o el cierre de su cuenta), sigue cancelada.
+      const cancelledAt = await this.cancelledMeanwhile(manager, subscription.id);
+      subscription.status = cancelledAt ? 'cancelled' : 'active';
+      if (cancelledAt) subscription.cancelledAt = cancelledAt;
       subscription.lastChargedAt = new Date();
       subscription.retryCount = 0;
       subscription.pendingPeriod = nextPeriod(paidPeriod);
@@ -427,6 +430,11 @@ export class SubscriptionsService {
           ledgerTransactionId: null,
         }),
       );
+      // Cancelada mientras se cobraba: queda el intento, sin suspender ni avisar.
+      if (await this.cancelledMeanwhile(manager, subscription.id)) {
+        subscription.status = 'cancelled';
+        return;
+      }
       const events: { key: string; payload: Record<string, unknown> }[] = [];
       if (suspend) {
         subscription.status = 'suspended';
@@ -458,7 +466,13 @@ export class SubscriptionsService {
       for (const event of events) await this.outbox.enqueue(manager, event.key, [event.payload]);
     });
     void this.outbox.flush();
-    return suspend ? 'suspended' : 'rejected';
+    return suspend && subscription.status === 'suspended' ? 'suspended' : 'rejected';
+  }
+
+  /** Fecha de cancelación si la fila ya está cancelada (con candado, para no pisar un cierre simultáneo). */
+  private async cancelledMeanwhile(manager: EntityManager, id: string): Promise<Date | null> {
+    const current = await manager.findOne(Subscription, { where: { id }, lock: { mode: 'pessimistic_write' } });
+    return current?.status === 'cancelled' ? (current.cancelledAt ?? new Date()) : null;
   }
 
   // =====================================================

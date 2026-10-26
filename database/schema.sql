@@ -106,7 +106,8 @@ CREATE TABLE public.cards (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     online_enabled boolean DEFAULT true NOT NULL,
-    daily_limit numeric(18,2) DEFAULT '5000000'::numeric NOT NULL
+    daily_limit numeric(18,2) DEFAULT '5000000'::numeric NOT NULL,
+    cancelled_at timestamp with time zone
 );
 
 

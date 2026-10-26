@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -59,6 +60,7 @@ export class CardControlsService {
 
   async setOnline(cardId: string, userId: string, enabled: boolean) {
     const card = await this.findOwnedCard(cardId, userId);
+    this.assertNotCancelled(card);
     // Antes de guardar: si account-service no responde, no queda un cambio a medias.
     const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     if (card.onlineEnabled !== enabled) {
@@ -71,6 +73,7 @@ export class CardControlsService {
 
   async setDailyLimit(cardId: string, userId: string, dto: UpdateDailyLimitDto) {
     const card = await this.findOwnedCard(cardId, userId);
+    this.assertNotCancelled(card);
     const accountLimit = await this.accounts.getAccountDailyLimit(card.accountId);
     const { min, max } = this.range(accountLimit);
     if (dto.dailyLimit < min || dto.dailyLimit > max) {
@@ -225,5 +228,9 @@ export class CardControlsService {
     if (!card) throw new NotFoundException('Tarjeta no encontrada.');
     if (card.userId !== userId) throw new ForbiddenException('No puedes acceder a esta tarjeta.');
     return card;
+  }
+
+  private assertNotCancelled(card: Card) {
+    if (card.status === 'cancelled') throw new ConflictException('La tarjeta fue cancelada.');
   }
 }
