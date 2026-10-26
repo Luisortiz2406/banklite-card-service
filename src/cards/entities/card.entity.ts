@@ -16,8 +16,10 @@ export class Card {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ name: 'pan_encrypted', type: 'text' })
-  encryptedPan: string;
+  // Número completo cifrado. Al cancelar la tarjeta (cierre de la cuenta) se borra:
+  // queda null y solo se conservan los últimos 4 dígitos.
+  @Column({ name: 'pan_encrypted', type: 'text', nullable: true })
+  encryptedPan: string | null;
 
   @Column({ name: 'last_four', type: 'varchar', length: 4 })
   lastFour: string;
@@ -31,8 +33,13 @@ export class Card {
   @Column({ name: 'expiry_year', type: 'smallint' })
   expiryYear: number;
 
+  // cancelled: el cliente canceló su cuenta (evento account.closed). Es definitivo:
+  // no se reactiva, no se revela el número y toda compra se rechaza.
   @Column({ type: 'varchar', default: 'active' })
-  status: 'active' | 'frozen';
+  status: 'active' | 'frozen' | 'cancelled';
+
+  @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
+  cancelledAt: Date | null;
 
   @Column({ type: 'varchar', default: 'virtual' })
   type: 'virtual';

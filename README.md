@@ -22,13 +22,14 @@ compras y los cobros de suscripciones se registran en ledger-service; cada inten
 - Límite diario por tarjeta (mínimo publicado en `GET /cards/catalog`, máximo el límite diario de la cuenta) sumando lo aprobado del día.
 - El número completo solo se descifra para el titular de la tarjeta.
 - Suscripciones: aviso 3 días antes, cobro mensual, rechazo por fondos o controles y suspensión tras 3 intentos fallidos.
+- Cuenta cancelada por el cliente (`account.closed`): todas sus tarjetas pasan a `cancelled` y sus suscripciones a `cancelled`; se borra el número cifrado de la tarjeta (`pan_encrypted` queda vacío) y solo se conservan los últimos 4 dígitos. Las filas no se borran. Una tarjeta cancelada es definitiva: no se reactiva, no se revela el número, no cambia sus controles y rechaza toda compra («La tarjeta fue cancelada.»). Un cobro de suscripción que termina después del cierre no la reactiva.
 
 **Comunicación con otros servicios**
 
 | | |
 |---|---|
 | Publica eventos | `subscription.charge_upcoming` / `charged` / `charge_rejected` / `suspended` → notification<br>`card.controls_changed`, `card.charge_declined` → notification |
-| Consume eventos | — |
+| Consume eventos | `account.closed` (account-service) → cancela tarjetas y suscripciones del cliente. Cola `card-service.account-closed`, con `.retry` y `.dlq`; procesarlo dos veces es inofensivo. |
 | Llama a | account-service: dueño y límite de la cuenta<br>ledger-service: cargos (`/ledger/internal/payments`)<br>auth-service: clave dinámica |
 | Lo llaman | Operación: `POST /internal/subscriptions/run-billing` (clave `ops:` opcional)<br>api-gateway (rutas `/cards/*`) |
 | Integraciones externas | — |
@@ -49,7 +50,7 @@ rutas internas.
 
 | Tabla | Contenido |
 |---|---|
-| `cards` | Tarjetas (número cifrado, últimos 4, estado, controles). |
+| `cards` | Tarjetas (número cifrado, últimos 4, estado `active` / `frozen` / `cancelled`, controles). `cancelled_at`: cuándo se canceló por el cierre de la cuenta; desde ahí `pan_encrypted` es `NULL`. |
 | `card_authorizations` | Intentos de cargo aprobados y rechazados (motivo). |
 | `card_settings_audit` | Cambios de controles hechos por el cliente. |
 | `merchants` | Comercios de compras y suscripciones. |
@@ -168,6 +169,7 @@ todas se configuran como variables del servicio, nunca en el código.
 | `AUTH_SERVICE_URL` | Sí | `http://localhost:3001` | URL interna de auth-service. |
 | `RABBITMQ_URL` | No | `amqp://banklite:<RABBITMQ_PASSWORD>@localhost:5672` | Conexión a RabbitMQ. Sin ella los eventos quedan en el outbox (o no se consumen). |
 | `RABBITMQ_EXCHANGE` | No | `banklite.events` | Exchange topic de eventos (`banklite.events`). |
+| `RABBITMQ_QUEUE` | No | `card-service.account-closed` | Cola donde escucha `account.closed`. |
 | `ALLOW_BILLING_DATE_OVERRIDE` | No | `false` | Solo pruebas locales: fecha simulada en el cobro de suscripciones. |
 | `HTTP_READ_RETRIES` | No | `1` | Reintentos de las lecturas (GET) a otros servicios; las escrituras no se reintentan. |
 
@@ -206,7 +208,7 @@ despliega desde su propio repositorio.
 | Repositorio | Relación con este servicio |
 |---|---|
 | [banklite-api-gateway](https://github.com/Luisortiz2406/banklite-api-gateway) | **Lo llama:** punto de entrada público, le enruta las rutas de este servicio |
-| [banklite-account-service](https://github.com/Luisortiz2406/banklite-account-service) | **Llama a:** dueño y límite de la cuenta |
+| [banklite-account-service](https://github.com/Luisortiz2406/banklite-account-service) | **Llama a:** dueño y límite de la cuenta<br>**Recibe:** `account.closed` (cancela tarjetas y suscripciones) |
 | [banklite-ledger-service](https://github.com/Luisortiz2406/banklite-ledger-service) | **Llama a:** cargos (`/ledger/internal/payments`) |
 | [banklite-auth-service](https://github.com/Luisortiz2406/banklite-auth-service) | **Llama a:** verificación de la clave dinámica |
 | [banklite-notification-service](https://github.com/Luisortiz2406/banklite-notification-service) | **Envía:** `subscription.*`, `card.controls_changed`, `card.charge_declined` |

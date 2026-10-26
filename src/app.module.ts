@@ -6,6 +6,7 @@ import { CardAuthorization } from './cards/entities/card-authorization.entity';
 import { CardSettingsAudit } from './cards/entities/card-settings-audit.entity';
 import { Card } from './cards/entities/card.entity';
 import { CardsModule } from './cards/cards.module';
+import { ClosureModule } from './closure/closure.module';
 import { CardOutbox } from './events/card-outbox.entity';
 import { Merchant } from './subscriptions/entities/merchant.entity';
 import { SubscriptionCharge } from './subscriptions/entities/subscription-charge.entity';
@@ -47,6 +48,7 @@ import { validateEnv } from './config/env.validation';
     // Antes que CardsModule: sus rutas fijas (/cards/subscriptions) van primero.
     SubscriptionsModule,
     CardsModule,
+    ClosureModule,
   ],
   controllers: [HealthController],
 })
