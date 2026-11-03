@@ -5,7 +5,7 @@ describe('catálogo de comercios', () => {
 
   it('no usa marcas reales', () => {
     const brands =
-      /netflix|spotify|youtube|prime|\bmax\b|paramount|crunchyroll|apple|deezer|icloud|chatgpt|duolingo|xbox|playstation|éxito|exito|falabella|juan valdez|mercado libre|rappi/i;
+      /netflix|spotify|youtube|prime|\bmax\b|paramount|crunchyroll|apple|deezer|icloud|chatgpt|duolingo|xbox|playstation|éxito|exito|falabella|juan valdez|mercado libre|rappi|demo/i;
     expect(all.filter((item) => brands.test(item.name)).map((item) => item.name)).toEqual([]);
   });
 
@@ -16,8 +16,8 @@ describe('catálogo de comercios', () => {
   });
 
   it('una compra vieja se muestra con el nombre vigente según su código', () => {
-    expect(currentMerchantName('tienda-exito', 'Éxito')).toBe('Supermercado Demo La Canasta');
-    expect(currentMerchantName('netflix', 'Netflix')).toBe('Cine Demo Estelar');
+    expect(currentMerchantName('tienda-exito', 'Éxito')).toBe('Supermercado Doña Canasta');
+    expect(currentMerchantName('netflix', 'Netflix')).toBe('Cineluz');
     // Un código que ya no está en el catálogo conserva lo guardado.
     expect(currentMerchantName('tienda-cerrada', 'Tienda vieja')).toBe('Tienda vieja');
   });
