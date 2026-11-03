@@ -11,7 +11,7 @@ import { DataSource } from 'typeorm';
 import { OutboxService } from '../events/outbox.service';
 import { BankingClientService } from '../subscriptions/banking-client.service';
 import { uuidV5 } from '../subscriptions/billing-dates';
-import { PURCHASE_STORES } from '../subscriptions/catalog';
+import { currentMerchantName, PURCHASE_STORES } from '../subscriptions/catalog';
 import { MerchantsService } from '../subscriptions/merchants.service';
 import { AccountsClientService } from './accounts-client.service';
 import { CARD_EVENTS, CardAuthorizationService, effectiveDailyLimit, formatCop } from './card-authorization.service';
@@ -213,7 +213,7 @@ export class CardControlsService {
       status: authorization.status,
       reason: authorization.reason,
       storeCode: authorization.merchantCode,
-      storeName: authorization.merchantName,
+      storeName: currentMerchantName(authorization.merchantCode, authorization.merchantName),
       channel: authorization.channel,
       amount: Number(authorization.amount),
       currency: authorization.currency,

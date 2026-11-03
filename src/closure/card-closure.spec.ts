@@ -88,7 +88,7 @@ describeWithDb('Cierre de cuenta en card-service (PostgreSQL)', () => {
     jest.clearAllMocks();
     await dataSource.getRepository(Merchant).save({
       code: 'tienda-exito',
-      name: 'Éxito',
+      name: 'Supermercado Demo La Canasta',
       plan: 'Compra',
       price: '0.00',
       accountId: randomUUID(),
@@ -208,7 +208,7 @@ describeWithDb('Cierre de cuenta en card-service (PostgreSQL)', () => {
     await closure.handleAccountClosed({ idUser: ANA });
 
     // El cobro arrancó con la fila aún activa (copia vieja en memoria).
-    const merchant = { code: 'netflix', name: 'Netflix', plan: 'Básico' } as Merchant;
+    const merchant = { code: 'netflix', name: 'Cine Demo Estelar', plan: 'Básico' } as Merchant;
     await (subscriptionsService as any).recordSuccess(stale, merchant, card, randomUUID());
     expect((await subscriptions.findOneByOrFail({ id: stale.id })).status).toBe('cancelled');
 

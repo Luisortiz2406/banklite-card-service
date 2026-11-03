@@ -6,6 +6,7 @@ import { In, Repository } from 'typeorm';
 import { StaffAuthGuard, StaffRoles } from '../common/staff/staff-auth.guard';
 import { CardAuthorization } from './entities/card-authorization.entity';
 import { Card } from './entities/card.entity';
+import { currentMerchantName } from '../subscriptions/catalog';
 
 export class AdminCardsQueryDto {
   @IsOptional() @IsUUID() userId?: string;
@@ -89,7 +90,7 @@ export class AdminCardsController {
         currency: a.currency,
         channel: a.channel,
         source: a.source,
-        merchantName: a.merchantName,
+        merchantName: currentMerchantName(a.merchantCode, a.merchantName),
         reason: a.reason,
         createdAt: a.createdAt,
       })),
