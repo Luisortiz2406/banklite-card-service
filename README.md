@@ -187,6 +187,10 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 Sin `TEST_DATABASE_URL` se omiten en local; en la CI son obligatorias (el workflow
 levanta un Postgres de servicio).
 
+También se prueban: el **cobro de suscripciones** (el primer mes se cobra de verdad o no se inscribe nada; un periodo no se cobra dos veces; un rechazo reintenta al día siguiente y tras 3 reintentos se suspende; si el ledger no responde el cobro se aplaza sin gastar un reintento; el candado de la tarea diaria; pausar, reanudar y cancelar, también si se cancela mientras se cobra), el **cobro al ledger** (un 4xx es rechazo con el motivo del ledger; 5xx, sin respuesta o clave interna rechazada es "no disponible" y no se reintenta solo), la **emisión y el cifrado de la tarjeta** (número con Luhn, AES-256-GCM, el CVV no se guarda, solo el titular lo ve), el panel administrativo (nunca expone el número), el outbox, los controladores, los guards, `/health` y la validación de configuración.
+
+**Cobertura:** el pipeline la muestra en el resumen de cada corrida y exige un mínimo de 70 % de líneas y 50 % de ramas (`umbral-lineas` y `umbral-ramas` en `deploy.yml`). Hoy está en 80,9 % de líneas y 78,2 % de ramas.
+
 ## Despliegue
 
 Lo despliega **GitHub Actions** (`.github/workflows/deploy.yml`, que usa el workflow
